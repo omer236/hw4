@@ -33,16 +33,23 @@ void* smalloc(size_t size){
     return sbrk_res+1;
 }
 void* scalloc(size_t num, size_t size){
+    if(size>MAX_SIZE||size==0){
+        return NULL;
+    }
     MallocMetadata *ptr;
     ptr= (MallocMetadata*)smalloc(num*size);
-    if(ptr==NULL){
+    if(!ptr){
         return NULL;
     }
     memset(ptr, 0, num*size);
     return ptr;
 }
 void sfree(void* p){
+    if (!p)
+        return;
     MallocMetadata *current=((MallocMetadata*)p-1);
+    if (!current)
+        return;
     current->is_free= true;
     if(!head){
         head=current;
@@ -54,15 +61,32 @@ void sfree(void* p){
             ptr = ptr->next;
         }
         else if (ptr->block_addr > current->block_addr) {
-            current->prev = ptr->prev;
-            ptr->prev->next = current;
-            ptr->prev = current;
-            current->next = ptr;
+            if(ptr==head){
+                ptr->prev=current;
+                current->next=ptr;
+                current->prev= NULL;
+                head=current;
+            }
+            else {
+                current->prev = ptr->prev;
+                ptr->prev->next = current;
+                ptr->prev = current;
+                current->next = ptr;
+                return;
+            }
         }
     }
-    current->next = ptr->next;
-    current->prev = ptr;
-    ptr->next = current;
+    if (ptr->block_addr <= current->block_addr) {
+        current->next = ptr->next;
+        current->prev = ptr;
+        ptr->next = current;
+    }
+    else{
+        ptr->prev=current;
+        current->next=ptr;
+        current->prev= NULL;
+        head=current;
+    }
 }
 void* srealloc(void* oldp, size_t size){
     if(size>MAX_SIZE||size==0){
@@ -77,7 +101,7 @@ void* srealloc(void* oldp, size_t size){
         return oldp;
     }
     ptr=smalloc(size);
-    if(ptr==NULL){
+    if(!ptr){
         return NULL;
     }
     memcpy(ptr, oldp, old->size);
